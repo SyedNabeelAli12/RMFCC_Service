@@ -5,6 +5,10 @@ import numpy as np
 import joblib
 import os
 
+from fastapi.middleware.cors import CORSMiddleware
+
+
+
 # 👇 Import your existing functions here
 from ml import (
     load_data, preprocess_economy, aggregate_piracy, merge_data,
@@ -13,6 +17,14 @@ from ml import (
 )
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or restrict to your React app’s domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Store pipeline data globally
 model = None
