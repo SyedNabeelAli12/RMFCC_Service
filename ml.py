@@ -1,29 +1,27 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.impute import SimpleImputer
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-from sklearn.impute import SimpleImputer
-from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, classification_report
 import joblib
 import os
+from sklearn.ensemble import RandomForestClassifier
 
-# 📥 Data Loading
+
+
 def load_data():
     economy_df = pd.read_csv('economy.csv')
     piracy_df = pd.read_csv('piracy.csv')
     return economy_df, piracy_df
 
 
-# # 🧹 Preprocessing Economy Data
 def preprocess_economy(economy_df):
-    columns_to_fill = ['GDP', 'INDUSTRYGDP', 'FISHPRODUCTION', 'MILITARY', 'CORRUPTIONINDEX', 'UNEMPLOYMENT']
+    columns_to_fill = ['GDP', 'INDUSTRYGDP', 'FISHPRODUCTION',
+                       'MILITARY', 'CORRUPTIONINDEX', 'UNEMPLOYMENT']
     for col in columns_to_fill:
         economy_df[col] = economy_df[col].fillna(economy_df[col].median())
 
@@ -37,8 +35,6 @@ def preprocess_economy(economy_df):
     return economy_df, scaler
 
 
-
-# # 📊 Aggregating Piracy Data
 def aggregate_piracy(piracy_df):
     piracy_df['date'] = pd.to_datetime(piracy_df['date'], errors='coerce')
     piracy_df['YEAROFRECORD'] = piracy_df['date'].dt.year
@@ -47,15 +43,12 @@ def aggregate_piracy(piracy_df):
     return piracy_counts
 
 
-
-# 🔀 Merging Datasets
 def merge_data(economy_df, piracy_counts):
     merged_df = pd.merge(economy_df, piracy_counts, on=['COUNTRY', 'YEAROFRECORD'], how='left')
     merged_df['PIRACY_COUNT'] = merged_df['PIRACY_COUNT'].fillna(0)
     return merged_df
 
 
-# # ⚙️ Feature Engineering
 def compute_features(df, scaler):
     df['Econ_Score'] = (
         scaler.fit_transform(df[['GDP_per_capita']])[:, 0] +
@@ -72,38 +65,30 @@ def compute_features(df, scaler):
     return df
 
 
-
-# # 🧠 Clustering
 def perform_clustering(df):
     features = df[['Econ_Score', 'Security_Risk']]
-    
-    # Impute missing values with mean
-    imputer = SimpleImputer(strategy='mean')
-    features_imputed = imputer.fit_transform(features)
-    
+    features_imputed = SimpleImputer(strategy='mean').fit_transform(features)
+
     kmeans = KMeans(n_clusters=4, random_state=0)
     df['Cluster'] = kmeans.fit_predict(features_imputed)
 
-    # Evaluate clustering
     silhouette = silhouette_score(features_imputed, df['Cluster'])
-    print(f"📈 Silhouette Score (KMeans): {silhouette:.3f}")
+    print(f"📈 Silhouette Score: {silhouette:.3f}")
 
     db = DBSCAN(eps=0.3, min_samples=10).fit(features_imputed)
     df['DBSCAN_Outlier'] = db.labels_
     return df
 
-# # 📉 PCA for Visualization
+
 def apply_pca(df):
     features = df[['Econ_Score', 'Security_Risk']]
-    imputer = SimpleImputer(strategy='mean')
-    features_imputed = imputer.fit_transform(features)
+    features_imputed = SimpleImputer(strategy='mean').fit_transform(features)
     pca = PCA(n_components=2)
     components = pca.fit_transform(features_imputed)
     df['PCA1'], df['PCA2'] = components[:, 0], components[:, 1]
     return df
 
 
-# # 🧮 Multi-Criteria Decision Analysis (MCDA)
 def score_countries(df):
     df['Final_Score'] = (
         0.4 * df['Econ_Score'] +
@@ -113,78 +98,69 @@ def score_countries(df):
     return df
 
 
-# 🧪 Supervised Learning (Piracy Prediction ON SAME DATA)
-def predict_piracy(df):
-    # Drop rows with missing predictor values
-    df = df.dropna(subset=['GR', 'MILITARY', 'CORRUPTIONINDEX', 'FISHPRODUCTION'])
-
-    # Binary target: High piracy = 1 if above median
-    df['High_Piracy'] = (df['PIRACY_COUNT'] > df['PIRACY_COUNT'].median()).astype(int)
-
-    features = df[['GR', 'MILITARY', 'CORRUPTIONINDEX', 'FISHPRODUCTION']]
-    target = df['High_Piracy']
-
-    # Impute just in case
-    imputer = SimpleImputer(strategy='mean')
-    X_imputed = imputer.fit_transform(features)
-
-    # Check if model already exists
+def predict(new_data, df):
     model_file = 'piracy_risk_model.joblib'
-    if os.path.exists(model_file):
-        model = joblib.load(model_file)
-        print(f"✅ Loaded existing model from {model_file}")
-    else:
-        # Train new model and save
-        model = DecisionTreeClassifier(max_depth=4, random_state=42)
-        model.fit(X_imputed, target)
+    imputer_file = 'piracy_imputer.joblib'
+    scaler_file = 'piracy_scaler.joblib'
+
+    if not (os.path.exists(model_file) and os.path.exists(imputer_file) and os.path.exists(scaler_file)):
+        print("⚠️ Model files not found. Training new model...")
+
+        df_train = df.dropna(subset=['GR', 'MILITARY', 'CORRUPTIONINDEX', 'FISHPRODUCTION'])
+        df_train['High_Piracy'] = (df_train['PIRACY_COUNT'] > 0).astype(int)
+
+        X = df_train[['GR', 'MILITARY', 'CORRUPTIONINDEX', 'FISHPRODUCTION']]
+        y = df_train['High_Piracy']
+
+        imputer = SimpleImputer(strategy='mean')
+        scaler = MinMaxScaler()
+
+        X_imputed = imputer.fit_transform(X)
+        X_scaled = scaler.fit_transform(X_imputed)
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_scaled, y, test_size=0.2, random_state=42, stratify=y
+        )
+
+        model = RandomForestClassifier(
+            n_estimators=100, max_depth=6, class_weight='balanced', random_state=42
+        )
+        model.fit(X_train, y_train)
+
         joblib.dump(model, model_file)
-        print(f"✅ Trained and saved new model to {model_file}")
+        joblib.dump(imputer, imputer_file)
+        joblib.dump(scaler, scaler_file)
 
-    # Predict on SAME data
-    df['Predicted_High_Piracy'] = model.predict(X_imputed)
-    df['Good_Candidate'] = df['Predicted_High_Piracy'] == 0
+        y_pred = model.predict(X_test)
+        print("✅ Model trained. Classification Report:\n", classification_report(y_test, y_pred))
 
-    # Show top recommended countries that are predicted low piracy risk
-    top_candidates = (
-        df[df['Good_Candidate']]
-        .groupby('COUNTRY')['Final_Score']
-        .mean()
-        .sort_values(ascending=False)
-        .head(15)
-    )
-    print("\n🏆 Top Recommended Countries (Predicted Low Piracy Risk):\n", top_candidates)
+        print("Feature importances:")
+        for name, importance in zip(['GR', 'MILITARY', 'CORRUPTIONINDEX', 'FISHPRODUCTION'], model.feature_importances_):
+            print(f"{name}: {importance:.3f}")
 
-    return df
+        print("Feature importances:")
+        for name, importance in zip(['GR', 'MILITARY', 'CORRUPTIONINDEX', 'FISHPRODUCTION'], model.feature_importances_):
+            print(f"{name}: {importance:.3f}")
 
+    else:
+        model = joblib.load(model_file)
+        imputer = joblib.load(imputer_file)
+        scaler = joblib.load(scaler_file)
 
-# # 📊 Plotting
-def plot_clusters(df):
-    plt.figure(figsize=(10, 6))
-    sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster', palette='tab10')
-    plt.title('Country Clusters: Economic & Security Profile')
-    plt.xlabel('PCA 1')
-    plt.ylabel('PCA 2')
-    plt.tight_layout()
-    plt.show()
+        print("✅ Loaded existing model and transformers.")
+        print("Feature importances:")
+        for name, importance in zip(['GR', 'MILITARY', 'CORRUPTIONINDEX', 'FISHPRODUCTION'], model.feature_importances_):
+            print(f"{name}: {importance:.3f}")
 
-# # 🏁 Main Execution Pipeline
-def main():
-    economy_df, piracy_df = load_data()
-    economy_df, scaler = preprocess_economy(economy_df)
-    piracy_counts = aggregate_piracy(piracy_df)
-    merged_df = merge_data(economy_df, piracy_counts)
-    merged_df = compute_features(merged_df, scaler)
-    merged_df = perform_clustering(merged_df)
-    merged_df = apply_pca(merged_df)
-    merged_df = score_countries(merged_df)
+    input_df = pd.DataFrame([new_data])
+    X_input_imputed = imputer.transform(input_df)
+    X_input_scaled = scaler.transform(X_input_imputed)
 
-    # Ranking
-    top_countries = merged_df.groupby('COUNTRY')['Final_Score'].mean().sort_values(ascending=False).head(15)
-    print("🏆 Top Recommended Countries for Expansion:\n", top_countries)
+    prediction = model.predict(X_input_scaled)
+    prediction_proba = model.predict_proba(X_input_scaled)
 
-    plot_clusters(merged_df)
-
-    # predict_piracy(merged_df)
-
-if __name__ == "__main__":
-    main()
+    return {
+        'High_Piracy': int(prediction[0]),
+        'Probability_No': prediction_proba[0][0],
+        'Probability_Yes': prediction_proba[0][1]
+    }
