@@ -1,2 +1,4 @@
 __pycache__/
+routes/__pycache__/
 rmfcc_env/
+.env/
