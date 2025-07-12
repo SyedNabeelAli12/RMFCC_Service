@@ -16,3 +16,4 @@ python-jose[cryptography]
 python-multipart
 python-dotenv
 pydantic[email]
+passlib
