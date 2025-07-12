@@ -15,11 +15,11 @@ load_dotenv()
 
 # Init app
 app = FastAPI()
-
+origins = os.getenv("URL", "http://localhost:3000").split(",")
 # Allow CORS
 app.add_middleware(
     CORSMiddleware,
-    origins = os.getenv("URL", "http://localhost:3000").split(",") # ⚠️ Allows any origin
+    allow_origins=origins, # ⚠️ Allows any origin
     allow_credentials=True,
     allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allows all headers
