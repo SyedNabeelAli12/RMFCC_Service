@@ -10,7 +10,8 @@ FastAPI
 # passlib[bcrypt]
 uvicorn
 # bcrypt
-pymongo
+pymongo>=4.7.0
+certifi>=2024.2.2
 motor 
 python-jose[cryptography] 
 python-multipart
