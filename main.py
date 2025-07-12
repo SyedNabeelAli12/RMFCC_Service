@@ -6,8 +6,11 @@ from routes.ml import (
     score_countries, predict
 )
 from routes.user import router as user_router 
-
 from pydantic import BaseModel
+origins = [
+    "http://localhost:3000",          # your React local dev
+    "https://your-frontend-domain.com",  # your deployed frontend (if any)
+]
 
 # Init app
 app = FastAPI()
@@ -15,7 +18,7 @@ app = FastAPI()
 # Allow CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ Allows any origin
+    allow_origins=origins,  # ⚠️ Allows any origin
     allow_credentials=True,
     allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allows all headers
