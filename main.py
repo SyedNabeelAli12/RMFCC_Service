@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes.ml import (
+from routes.check import (
     load_data, preprocess_economy, aggregate_piracy, merge_data,
     compute_features, perform_clustering, apply_pca,
-    score_countries, predict
+    score_countries, predict, forecast_trend, forecast_and_predict_5th_year
 )
 from routes.user import router as user_router 
 from pydantic import BaseModel
@@ -41,6 +41,12 @@ class CountryInput(BaseModel):
     CORRUPTIONINDEX: float
     FISHPRODUCTION: float
 
+class ForecastInput(BaseModel):
+    country: str
+    feature: str 
+    years: int 
+class Forecast5YearInput(BaseModel):
+    country: str
 
 @app.on_event("startup")
 def startup_event():
@@ -57,7 +63,7 @@ def startup_event():
     merged_df = score_countries(merged_df)
 
     top_countries = (
-        merged_df.groupby('COUNTRY')['Final_Score']
+        merged_df.groupby(['COUNTRY','COUNTRYNAME'])['Final_Score']
         .mean()
         .sort_values(ascending=False)
         .head(15)
@@ -76,6 +82,51 @@ def read_root():
         "top_countries": top_countries
     }
 
+@app.post("/forecast")
+def forecast_post(input_data: ForecastInput):
+    global merged_df
+
+    full_df, year5_info,forecast_df  = forecast_trend(
+        merged_df,
+        country=input_data.country,
+        feature=input_data.feature,
+        forecast_years=input_data.years,
+        plot=False
+    )
+
+    if forecast_df is None:
+        return {
+            "error": f"⚠️ Not enough data to forecast for '{input_data.country}' with feature '{input_data.feature}'."
+        }
+
+    return {
+        "country": input_data.country,
+        "feature": input_data.feature,
+        "forecast": forecast_df.to_dict(orient="records"),
+        "5th_year_summary": year5_info,
+        "full_df" :full_df.to_dict(orient="records")
+    }
+
+
+@app.post("/forecast-predict")
+def forecast_and_predict_route(input_data: Forecast5YearInput):
+    global merged_df
+
+    result = forecast_and_predict_5th_year(merged_df, input_data.country.upper())
+    return result
+
+@app.get("/distinct-countries")
+def get_distinct_countries():
+    global merged_df
+   
+    distinct_countries = (
+        merged_df[["COUNTRY", "COUNTRYNAME"]]
+        .dropna()
+        .drop_duplicates()
+        .sort_values("COUNTRYNAME")
+        .to_dict(orient="records")
+    )
+    return {"countries": distinct_countries}
 
 @app.post("/predict")
 def predict_country(input_data: CountryInput):

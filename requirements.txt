@@ -18,3 +18,4 @@ python-multipart
 python-dotenv
 pydantic[email]
 passlib
+statsmodels
