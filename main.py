@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes.check import (
+from routes.machineLearning import (
     load_data, preprocess_economy, aggregate_piracy, merge_data,
     compute_features, perform_clustering, apply_pca,
     score_countries, predict, forecast_trend, forecast_and_predict_5th_year
