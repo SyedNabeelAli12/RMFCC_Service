@@ -104,6 +104,8 @@ def score_countries(df):
     return df
 
 
+
+# To be change later for the call by the forecast_trend flag to be used so that only required data will return to forecast_and_predict_5th_year
 def forecast_trend(df, country, feature='GDP', forecast_years=5, plot=False):
  
     try:

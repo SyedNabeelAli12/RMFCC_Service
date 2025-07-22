@@ -1,14 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from routes.machineLearning import (
     load_data, preprocess_economy, aggregate_piracy, merge_data,
     compute_features, perform_clustering, apply_pca,
     score_countries, predict, forecast_trend, forecast_and_predict_5th_year
 )
+from middleware.middleware import(verify_token)
 from routes.user import router as user_router 
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
+
 
 load_dotenv()
 
@@ -22,8 +24,10 @@ app.add_middleware(
     allow_origins=origins, # ⚠️ Allows any origin
     allow_credentials=True,
     allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_headers=["*"]
 )
+
+
 
 # Register user router
 app.include_router(user_router)
@@ -52,7 +56,7 @@ class Forecast5YearInput(BaseModel):
 def startup_event():
     global model, imputer, scaler, top_countries, merged_df
 
-    print("🔄 Running data pipeline...")
+    print("Running data pipeline...")
     economy_df, piracy_df = load_data()
     economy_df, econ_scaler = preprocess_economy(economy_df)
     piracy_counts = aggregate_piracy(piracy_df)
@@ -76,14 +80,14 @@ def startup_event():
 
 
 @app.get("/")
-def read_root():
+def read_root(user=Depends(verify_token)):
     return {
         "message": "🚢 Welcome to the Piracy Risk API!",
         "top_countries": top_countries
     }
 
 @app.post("/forecast")
-def forecast_post(input_data: ForecastInput):
+def forecast_post(input_data: ForecastInput,user=Depends(verify_token)):
     global merged_df
 
     full_df, year5_info,forecast_df  = forecast_trend(
@@ -109,14 +113,14 @@ def forecast_post(input_data: ForecastInput):
 
 
 @app.post("/forecast-predict")
-def forecast_and_predict_route(input_data: Forecast5YearInput):
+def forecast_and_predict_route(input_data: Forecast5YearInput,user=Depends(verify_token)):
     global merged_df
 
     result = forecast_and_predict_5th_year(merged_df, input_data.country.upper())
     return result
 
 @app.get("/distinct-countries")
-def get_distinct_countries():
+def get_distinct_countries(user=Depends(verify_token)):
     global merged_df
    
     distinct_countries = (
@@ -129,7 +133,7 @@ def get_distinct_countries():
     return {"countries": distinct_countries}
 
 @app.post("/predict")
-def predict_country(input_data: CountryInput):
+def predict_country(input_data: CountryInput,user=Depends(verify_token)):
     global merged_df
     new_data = {
         "GR": input_data.GR,
